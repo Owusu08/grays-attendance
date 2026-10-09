@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Courses · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Lecturer Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="dashboard.html">Dashboard</a><a href="courses.html" class="active">Courses</a><a href="records.html">Records</a><a href="profile.html">Profile</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="dashboard.html">Dashboard</a><a href="courses.html" class="active">Courses</a><a href="records.html">Records</a><a href="profile.html">Profile</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">Classes</div><h1>My courses</h1><p class="card-sub">Add your courses and import each class roster before you start a session.</p></div></div>
+<div class="grid-2">
+<div class="card">
+<div class="card-head"><div><h2>Add a course</h2><p class="card-sub">You can import students right after.</p></div></div>
+<form id="courseForm" onsubmit="addCourse(event)" novalidate>
+<div class="field"><label for="courseCode">Course code</label><input type="text" id="courseCode" class="mono-input" style="text-transform:uppercase;" placeholder="ICT 243" maxlength="20" autocomplete="off" required></div>
+<div class="field"><label for="courseName">Course name</label><input type="text" id="courseName" placeholder="e.g. Web Programming" maxlength="100" autocomplete="off" required></div>
+<div class="err" id="courseErr"></div>
+<button class="btn btn-block" id="addBtn" type="submit" style="margin-top:8px;">Add course</button>
+</form>
+</div>
+<div class="table-card">
+<div class="toolbar"><div class="search"><input type="search" id="searchBox" placeholder="Search courses" aria-label="Search courses" oninput="renderCourses()"></div></div>
+<div class="table-wrap"><table><thead><tr><th>Course</th><th>Students</th><th style="text-align:right;">Actions</th></tr></thead>
+<tbody id="rows"><tr class="loading-row"><td colspan="3"><span class="spinner"></span>Loading courses...</td></tr></tbody></table></div>
+<div class="empty" id="emptyState" style="display:none;"><div class="big" id="emptyTitle">No courses yet</div><span id="emptyText">Add your first course using the form.</span></div>
+</div>
+</div>
+</main>
+<div class="modal-overlay" id="importOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+<h2 id="importTitle">Import students</h2>
+<p class="muted" style="margin:-8px 0 16px;" id="importCourse"></p>
+<div class="field"><label for="rosterFile">Upload a CSV or JSON file</label><input type="file" id="rosterFile" accept=".csv,.json,text/csv,application/json" onchange="loadFile(this)"><div class="dropzone-note">CSV columns: <span class="mono">student_id, full_name</span> (a header row is fine).</div></div>
+<div class="field"><label for="rosterText">...or paste students, one per line</label><textarea id="rosterText" placeholder="0123456789, Ama Mensah&#10;0123456790, Kofi Boateng" oninput="previewRoster()"></textarea></div>
+<div class="import-preview" id="importPreview">Nothing to import yet.</div>
+<div class="err" id="importErr"></div>
+<div class="modal-actions"><button class="btn btn-ghost" type="button" onclick="closeModal()">Cancel</button><button class="btn" id="importBtn" type="button" onclick="submitRoster()" disabled>Import students</button></div>
+</div></div>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+/* API contract used by this page. Adjust the roster path here if your server differs. */
+var API={list:'/api/courses',add:'/api/courses',del:function(id){return '/api/courses/'+encodeURIComponent(id);},roster:function(id){return '/api/courses/'+encodeURIComponent(id)+'/students';}};
+var courses=[],importId=null,parsed=[];
+function ok(res){if(res.status===401){location.href='login.html';return false;}return true;}
+async function loadCourses(){
+  try{var res=await fetch(API.list);if(!ok(res))return;if(!res.ok)throw 0;courses=await res.json();renderCourses();}
+  catch(e){document.getElementById('rows').innerHTML='<tr class="loading-row"><td colspan="3">Could not load courses. Refresh to try again.</td></tr>';toast('Could not load courses.','error');}
+}
+function renderCourses(){
+  var tb=document.getElementById('rows'),empty=document.getElementById('emptyState'),s=val('searchBox').toLowerCase();
+  var rows=courses.filter(function(c){return !s||(c.course_code||'').toLowerCase().includes(s)||(c.course_name||'').toLowerCase().includes(s);});
+  if(!rows.length){tb.innerHTML='';document.getElementById('emptyTitle').textContent=s?'No matching courses':'No courses yet';document.getElementById('emptyText').textContent=s?'Try a different search.':'Add your first course using the form.';empty.style.display='block';return;}
+  empty.style.display='none';
+  tb.innerHTML=rows.map(function(c){
+    var n=c.student_count!=null?c.student_count:(c.students!=null?c.students:null);
+    var cnt=n===null?'<span class="muted">-</span>':(n===0?'<span class="pill never">No students</span>':'<span class="pill">'+esc(plural(n,'student'))+'</span>');
+    return '<tr><td><div class="course-code">'+esc(c.course_code)+'</div><div class="lect-email">'+esc(c.course_name)+'</div></td><td>'+cnt+'</td><td><div class="row-actions" style="gap:4px;"><button class="copy-mini" data-import="'+esc(c.id)+'">Import students</button><button class="revoke" data-delete="'+esc(c.id)+'" aria-label="Delete '+esc(c.course_code)+'">Delete</button></div></td></tr>';
+  }).join('');
+}
+document.getElementById('rows').addEventListener('click',function(e){
+  var i=e.target.closest('[data-import]'),d=e.target.closest('[data-delete]');
+  if(i)openImport(i.dataset.import);else if(d)deleteCourse(d.dataset.delete);
+});
+async function addCourse(e){
+  e.preventDefault();hideErr('courseErr');
+  var code=val('courseCode').toUpperCase(),name=val('courseName');
+  if(!code||!name)return showErr('Enter both a course code and a course name.','courseErr');
+  if(courses.some(function(c){return (c.course_code||'').toUpperCase()===code;}))return showErr('You already have a course with the code '+code+'.','courseErr');
+  var b=document.getElementById('addBtn');setBusy(b,true,'Adding...');
+  try{
+    var res=await fetch(API.add,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({course_code:code,course_name:name})});
+    if(!ok(res))return;var d=await readJson(res);
+    if(!res.ok)return showErr(d.error||'Could not add the course.','courseErr');
+    document.getElementById('courseForm').reset();toast(code+' added. Now import its students.');
+    await loadCourses();var made=d&&d.id!=null?d.id:(courses.find(function(c){return (c.course_code||'').toUpperCase()===code;})||{}).id;
+    if(made!=null)openImport(made);
+  }catch(err){showErr('Could not reach the server. Try again.','courseErr');}
+  finally{setBusy(b,false,'Add course');}
+}
+async function deleteCourse(id){
+  var c=courses.find(function(x){return String(x.id)===String(id);});if(!c)return;
+  if(!confirm('Delete '+c.course_code+'? Its students and attendance records may be removed too. This cannot be undone.'))return;
+  try{var res=await fetch(API.del(id),{method:'DELETE'});if(!ok(res))return;
+    if(!res.ok){var d=await readJson(res);toast(d.error||'Could not delete the course.','error');return;}
+    toast(c.course_code+' deleted.');loadCourses();}
+  catch(e){toast('Could not reach the server.','error');}
+}
+/* ---- roster import ---- */
+function openImport(id){
+  var c=courses.find(function(x){return String(x.id)===String(id);});if(!c)return;
+  importId=c.id;parsed=[];document.getElementById('rosterFile').value='';document.getElementById('rosterText').value='';hideErr('importErr');
+  document.getElementById('importCourse').textContent=c.course_code+' - '+c.course_name;previewRoster();
+  document.getElementById('importOverlay').classList.add('show');setTimeout(function(){document.getElementById('rosterFile').focus();},30);
+}
+function closeModal(){var o=document.getElementById('importOverlay');if(o)o.classList.remove('show');}
+function splitCsvLine(l){var out=[],cur='',q=false;for(var i=0;i<l.length;i++){var ch=l[i];if(ch==='"'){if(q&&l[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(ch===','&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out.map(function(x){return x.trim();});}
+function parseRoster(text){
+  text=String(text||'').replace(/^﻿/,'').trim();if(!text)return {students:[],skipped:0};
+  var list=[],skipped=0;
+  if(text[0]==='['||text[0]==='{'){
+    try{var j=JSON.parse(text);if(!Array.isArray(j))j=j.students||[];
+      j.forEach(function(r){var id=String(r.student_id||r.id||r.index_number||'').trim(),nm=String(r.full_name||r.name||'').trim();if(id&&nm)list.push({student_id:id,full_name:nm});else skipped++;});
+      return {students:dedupe(list),skipped:skipped};}catch(e){return {students:[],skipped:0,error:'That JSON could not be read.'};}
+  }
+  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+  if(lines.length&&/(^|,)\s*"?(student[_ ]?id|id|index)/i.test(lines[0])&&/name/i.test(lines[0]))lines.shift();
+  lines.forEach(function(l){var p=l.indexOf(',')>-1?splitCsvLine(l):l.split(/\t|;/).map(function(x){return x.trim();});
+    if(p.length<2){var m=l.trim().match(/^(\S+)\s+(.+)$/);if(m)p=[m[1],m[2]];}
+    if(p.length>=2&&p[0]&&p[1])list.push({student_id:p[0],full_name:p.slice(1).join(' ').trim()});else skipped++;});
+  return {students:dedupe(list),skipped:skipped};
+}
+function dedupe(l){var seen={};return l.filter(function(r){var k=r.student_id.toLowerCase();if(seen[k])return false;seen[k]=1;return true;});}
+function previewRoster(){
+  var r=parseRoster(document.getElementById('rosterText').value);parsed=r.students;
+  var p=document.getElementById('importPreview'),b=document.getElementById('importBtn');
+  if(r.error){p.textContent=r.error;b.disabled=true;return;}
+  if(!parsed.length){p.textContent=r.skipped?r.skipped+' line(s) could not be read. Use: student_id, full_name':'Nothing to import yet.';b.disabled=true;return;}
+  var sample=parsed.slice(0,3).map(function(s){return esc(s.full_name)+' ('+esc(s.student_id)+')';}).join(', ');
+  p.innerHTML='<strong>'+esc(plural(parsed.length,'student'))+'</strong> ready'+(r.skipped?', '+r.skipped+' skipped':'')+'.<br><span class="muted" style="margin:0;font-size:12.5px;">'+sample+(parsed.length>3?', ...':'')+'</span>';
+  b.disabled=false;
+}
+function loadFile(inp){
+  var f=inp.files&&inp.files[0];if(!f)return;
+  if(f.size>2*1024*1024){showErr('That file is too large (max 2 MB).','importErr');inp.value='';return;}
+  hideErr('importErr');var fr=new FileReader();
+  fr.onload=function(){document.getElementById('rosterText').value=String(fr.result||'');previewRoster();};
+  fr.onerror=function(){showErr('Could not read that file.','importErr');};fr.readAsText(f);
+}
+async function submitRoster(){
+  if(!parsed.length||importId==null)return;hideErr('importErr');
+  var b=document.getElementById('importBtn');setBusy(b,true,'Importing...');
+  try{
+    var res=await fetch(API.roster(importId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({students:parsed})});
+    if(!ok(res))return;var d=await readJson(res);
+    if(!res.ok)return showErr(d.error||'Could not import the students.','importErr');
+    closeModal();toast(plural(d.imported!=null?d.imported:parsed.length,'student')+' imported.');loadCourses();
+  }catch(e){showErr('Could not reach the server. Try again.','importErr');}
+  finally{setBusy(b,false,'Import students');}
+}
+guard('lecturer','login.html').then(function(m){if(m)loadCourses();});
+</script>
+</body>
+</html>

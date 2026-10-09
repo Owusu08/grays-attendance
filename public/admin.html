@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Administrator Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="admin.html" class="active">Lecturers</a><a href="admin-invites.html">Invite codes</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('admin-login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="admin.html" class="active">Lecturers</a><a href="admin-invites.html">Invite codes</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">Team</div><h1>Lecturers</h1><p class="card-sub">Everyone who joined with a lecturer code.</p></div><a href="admin-invites.html" class="btn">Create lecturer code</a></div>
+<div class="stats">
+<div class="stat"><div class="num" id="sumLecturers">0</div><div class="lbl">Lecturers</div></div>
+<div class="stat present"><div class="num" id="sumActive">0</div><div class="lbl">Active (7 days)</div></div>
+<div class="stat rate"><div class="num" id="sumCourses">0</div><div class="lbl">Courses</div></div>
+<div class="stat late"><div class="num" id="sumSessions">0</div><div class="lbl">Sessions run</div></div>
+</div>
+<div class="table-card"><div class="toolbar"><div class="search"><input type="search" id="searchBox" placeholder="Search by name or email" aria-label="Search lecturers" oninput="renderRows()"></div>
+<select id="statusFilter" onchange="renderRows()"><option value="all">All</option><option value="active">Active</option><option value="recent">Recent (8-14 days)</option><option value="idle">Idle (over 14 days)</option><option value="never">Never ran a session</option></select></div>
+<div class="table-wrap"><table><thead><tr><th>Lecturer</th><th>Courses</th><th>Sessions</th><th>Last active</th><th>Status</th></tr></thead>
+<tbody id="rows"><tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading lecturers...</td></tr></tbody></table></div>
+<div class="empty" id="emptyState" style="display:none;"><div class="big" id="emptyTitle">No lecturers yet</div><span id="emptyText">Create a lecturer code from the <a href="admin-invites.html" class="btn-link">Invite codes</a> page.</span></div></div>
+</main>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+var all=[];
+function daysAgo(d){if(!d)return null;return Math.floor((Date.now()-new Date(d).getTime())/86400000);}
+function relative(d){var x=daysAgo(d);if(x===null)return 'Never';if(x===0)return 'Today';if(x===1)return 'Yesterday';if(x<30)return x+'d ago';return fmtDate(d);}
+function st(d){var x=daysAgo(d);if(x===null)return {key:'never',label:'Never',cls:'never'};if(x<=7)return {key:'active',label:'Active',cls:'active'};if(x>14)return {key:'idle',label:'Idle',cls:'idle'};return {key:'recent',label:'Recent',cls:''};}
+async function load(){
+  if(!await guard('admin','admin-login.html'))return;
+  var r;try{r=await fetch('/api/admin/lecturers');}catch(e){r=null;}
+  if(!r||!r.ok){document.getElementById('rows').innerHTML='<tr class="loading-row"><td colspan="5">Could not load lecturers. Refresh to try again.</td></tr>';toast('Could not load lecturers.','error');return;}
+  all=(await r.json()).lecturers||[];
+  document.getElementById('sumLecturers').textContent=all.length;
+  document.getElementById('sumActive').textContent=all.filter(function(l){var d=daysAgo(l.last_session_date);return d!==null&&d<=7;}).length;
+  document.getElementById('sumCourses').textContent=all.reduce(function(s,l){return s+(l.course_count||0);},0);
+  document.getElementById('sumSessions').textContent=all.reduce(function(s,l){return s+(l.session_count||0);},0);
+  renderRows();
+}
+function renderRows(){
+  var tb=document.getElementById('rows'),empty=document.getElementById('emptyState');
+  var s=val('searchBox').toLowerCase(),f=val('statusFilter'),rows=all.slice();
+  if(s)rows=rows.filter(function(l){return (l.full_name||'').toLowerCase().includes(s)||(l.email||'').toLowerCase().includes(s);});
+  if(f!=='all')rows=rows.filter(function(l){return st(l.last_session_date).key===f;});
+  if(!rows.length){tb.innerHTML='';var filtered=s||f!=='all';document.getElementById('emptyTitle').textContent=filtered?'No matching lecturers':'No lecturers yet';document.getElementById('emptyText').innerHTML=filtered?'Try a different search or filter.':'Create a lecturer code from the <a href="admin-invites.html" class="btn-link">Invite codes</a> page.';empty.style.display='block';return;}
+  empty.style.display='none';
+  tb.innerHTML=rows.map(function(l){var s2=st(l.last_session_date);return '<tr><td><div class="lect-cell"><div class="avatar">'+esc(initials(l.full_name))+'</div><div><div class="lect-name">'+esc(l.full_name)+'</div><div class="lect-email">'+esc(l.email)+'</div></div></div></td><td><span class="pill">'+(l.course_count||0)+'</span></td><td><span class="pill">'+(l.session_count||0)+'</span></td><td class="mono">'+relative(l.last_session_date)+'</td><td><span class="pill '+s2.cls+'">'+s2.label+'</span></td></tr>';}).join('');
+}
+load();
+</script>
+</body>
+</html>

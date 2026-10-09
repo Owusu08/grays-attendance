@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Records · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Lecturer Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="dashboard.html">Dashboard</a><a href="courses.html">Courses</a><a href="records.html" class="active">Records</a><a href="profile.html">Profile</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="dashboard.html">Dashboard</a><a href="courses.html">Courses</a><a href="records.html" class="active">Records</a><a href="profile.html">Profile</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">History</div><h1>Attendance records</h1><p class="card-sub">Filter, review, and export every check-in.</p></div><button class="btn" id="exportBtn" onclick="downloadCsv()" disabled>Export CSV</button></div>
+<div class="filter-bar">
+<div><label for="fCourse">Course</label><select id="fCourse" onchange="applyFilters()"><option value="all">All courses</option></select></div>
+<div><label for="fStatus">Status</label><select id="fStatus" onchange="applyFilters()"><option value="all">All statuses</option><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option></select></div>
+<div><label for="fFrom">From date</label><input type="date" id="fFrom" onchange="applyFilters()"></div>
+<div><label for="fSearch">Search student</label><input type="search" id="fSearch" placeholder="Name or ID" oninput="applyFilters()"></div>
+<button class="btn btn-ghost" type="button" onclick="resetFilters()">Reset</button>
+</div>
+<div class="summary-row">
+<div class="stat"><div class="num" id="sumTotal">0</div><div class="lbl">Records shown</div></div>
+<div class="stat present"><div class="num" id="sumPresent">0</div><div class="lbl">Present</div></div>
+<div class="stat late"><div class="num" id="sumLate">0</div><div class="lbl">Late</div></div>
+<div class="stat rate"><div class="num" id="sumRate">0%</div><div class="lbl">Attendance rate</div></div>
+</div>
+<div class="tabs" role="tablist" style="margin-bottom:14px;"><button class="tab active" data-view="log" onclick="switchView('log')">Session log</button><button class="tab" data-view="student" onclick="switchView('student')">By student</button></div>
+<div class="table-card"><div class="table-wrap"><table><thead id="tableHead"><tr><th>Student</th><th>Course</th><th>Date</th><th>Time</th><th>Status</th></tr></thead><tbody id="recordsBody"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading records...</td></tr></tbody></table></div>
+<div class="notice hidden" id="capNotice"></div>
+<div class="empty" id="emptyState" style="display:none;"><div class="big" id="emptyTitle">No matching records</div><span id="emptyText">Try changing your filters.</span></div></div>
+</main>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+var debounceTimer=null,currentRecords=[],currentView='log',reqSeq=0,LOG_LIMIT=300;
+function ok(res){if(res.status===401){location.href='login.html';return false;}return true;}
+async function loadCourses(){
+  try{var res=await fetch('/api/courses');if(!ok(res)||!res.ok)return;var courses=await res.json();
+  document.getElementById('fCourse').innerHTML='<option value="all">All courses</option>'+courses.map(function(c){return '<option value="'+esc(c.course_code)+'">'+esc(c.course_code)+' - '+esc(c.course_name)+'</option>';}).join('');}catch(e){}
+}
+function filtersActive(){return val('fCourse')!=='all'||val('fStatus')!=='all'||val('fFrom')||val('fSearch');}
+function applyFilters(){
+  clearTimeout(debounceTimer);
+  debounceTimer=setTimeout(loadRecords,250);
+}
+async function loadRecords(){
+  var seq=++reqSeq;
+  var p=new URLSearchParams({course:val('fCourse'),status:val('fStatus')});
+  if(val('fFrom'))p.append('from',val('fFrom'));if(val('fSearch'))p.append('search',val('fSearch'));
+  document.getElementById('recordsBody').innerHTML='<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading records...</td></tr>';
+  document.getElementById('emptyState').style.display='none';
+  try{
+    var res=await fetch('/api/records?'+p.toString());if(seq!==reqSeq)return;if(!ok(res))return;
+    if(!res.ok){showEmpty('Could not load records','Something went wrong on the server. Please try again.');toast('Could not load records.','error');return;}
+    currentRecords=await res.json();if(seq!==reqSeq)return;
+    renderSummary(currentRecords);renderView();
+  }catch(e){if(seq!==reqSeq)return;showEmpty('You seem to be offline','Check your connection, then change a filter to retry.');toast('Could not reach the server.','error');}
+}
+function showEmpty(title,text){
+  document.getElementById('recordsBody').innerHTML='';document.getElementById('capNotice').classList.add('hidden');
+  document.getElementById('emptyTitle').textContent=title;document.getElementById('emptyText').innerHTML=text;
+  document.getElementById('emptyState').style.display='block';document.getElementById('exportBtn').disabled=true;
+}
+function showNoRecords(){
+  if(filtersActive())showEmpty('No matching records','Try changing or <button class="btn-link-inline" onclick="resetFilters()">resetting your filters</button>.');
+  else showEmpty('No attendance records yet','Records appear here after students check in. <a href="dashboard.html" class="btn-link">Start a session</a>');
+}
+function switchView(v){currentView=v;document.querySelectorAll('.tabs .tab').forEach(function(t){t.classList.toggle('active',t.dataset.view===v);});renderView();}
+function renderView(){document.getElementById('exportBtn').disabled=!currentRecords.length;if(currentView==='log')renderLog(currentRecords);else renderByStudent(currentRecords);}
+function renderLog(records){
+  document.getElementById('tableHead').innerHTML='<tr><th>Student</th><th>Course</th><th>Date</th><th>Time</th><th>Status</th></tr>';
+  var body=document.getElementById('recordsBody'),empty=document.getElementById('emptyState');
+  if(!records.length){showNoRecords();return;}
+  empty.style.display='none';
+  var n=document.getElementById('capNotice');if(records.length>LOG_LIMIT){n.textContent='Showing the first '+LOG_LIMIT+' of '+records.length+' records. Narrow your filters, or export the CSV for everything.';n.classList.remove('hidden');}else n.classList.add('hidden');
+  body.innerHTML=records.slice(0,LOG_LIMIT).map(function(r){return '<tr><td><div class="student-name">'+esc(r.name)+'</div><div class="student-id">'+esc(r.student_id)+'</div></td><td class="mono">'+esc(r.course_code)+'</td><td class="mono">'+esc(r.date)+'</td><td class="mono">'+esc(r.time)+'</td><td><span class="badge '+esc(r.status)+'">'+esc(cap(r.status))+'</span></td></tr>';}).join('');
+}
+function renderByStudent(records){
+  var map=new Map();
+  records.forEach(function(r){var k=r.student_id+'|'+r.course_code;if(!map.has(k))map.set(k,{student_id:r.student_id,name:r.name,course_code:r.course_code,present:0,late:0,absent:0,total:0});
+    var x=map.get(k);x.total++;if(r.status==='present')x.present++;else if(r.status==='late')x.late++;else x.absent++;});
+  var rows=Array.from(map.values()).sort(function(a,b){return a.name.localeCompare(b.name);});
+  document.getElementById('tableHead').innerHTML='<tr><th>Student</th><th>Course</th><th>Present</th><th>Late</th><th>Absent</th><th>Rate</th></tr>';
+  var body=document.getElementById('recordsBody'),empty=document.getElementById('emptyState');
+  if(!rows.length){showNoRecords();return;}
+  empty.style.display='none';document.getElementById('capNotice').classList.add('hidden');
+  body.innerHTML=rows.map(function(r){var rate=r.total>0?Math.round((r.present+r.late)/r.total*100):0;var cls=rate>=75?'':rate>=50?'warn':'bad';
+    return '<tr><td><div class="student-name">'+esc(r.name)+'</div><div class="student-id">'+esc(r.student_id)+'</div></td><td class="mono">'+esc(r.course_code)+'</td><td class="mono">'+r.present+'</td><td class="mono">'+r.late+'</td><td class="mono">'+r.absent+'</td><td><span class="rate-bar '+cls+'"><i style="width:'+rate+'%"></i></span><span class="mono" style="font-weight:700;">'+rate+'%</span></td></tr>';}).join('');
+}
+function downloadCsv(){
+  if(!currentRecords.length){toast('No records to export.','error');return;}
+  var q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';};
+  var lines=[['Name','Student ID','Course','Date','Time','Status'].map(q).join(',')];
+  currentRecords.forEach(function(r){var t=r.time==='\u2014'?'':r.time;lines.push([r.name,r.student_id,r.course_code,r.date,t,r.status].map(q).join(','));});
+  var blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download='attendance-records-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast('CSV exported.');
+}
+function renderSummary(r){
+  var p=r.filter(function(x){return x.status==='present';}).length,l=r.filter(function(x){return x.status==='late';}).length;
+  document.getElementById('sumTotal').textContent=r.length;document.getElementById('sumPresent').textContent=p;document.getElementById('sumLate').textContent=l;
+  document.getElementById('sumRate').textContent=(r.length?Math.round((p+l)/r.length*100):0)+'%';
+}
+function resetFilters(){document.getElementById('fCourse').value='all';document.getElementById('fStatus').value='all';document.getElementById('fFrom').value='';document.getElementById('fSearch').value='';loadRecords();}
+guard('lecturer','login.html').then(function(m){if(m){loadCourses();loadRecords();}});
+</script>
+</body>
+</html>

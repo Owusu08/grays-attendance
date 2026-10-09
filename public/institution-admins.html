@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administrators · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Institution Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="institution-dashboard.html">Overview</a><a href="institution-admins.html" class="active">Administrators</a><a href="institution-invites.html">Invite codes</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('institution-login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="institution-dashboard.html">Overview</a><a href="institution-admins.html" class="active">Administrators</a><a href="institution-invites.html">Invite codes</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">Team</div><h1>Administrators</h1><p class="card-sub">Everyone you invited with an admin code.</p></div></div>
+<div class="table-card"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Status</th></tr></thead>
+<tbody id="rows"><tr class="loading-row"><td colspan="4"><span class="spinner"></span>Loading administrators...</td></tr></tbody></table></div>
+<div class="empty" id="emptyState" style="display:none;"><div class="big">No administrators yet</div><a href="institution-dashboard.html#create" class="btn-link">Create an admin code</a> and share it.</div></div>
+</main>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+(async function(){
+  if(!await guard('institution','institution-login.html'))return;
+  var r;try{r=await fetch('/api/institutions/admins');}catch(e){r=null;}
+  if(!r||!r.ok){document.getElementById('rows').innerHTML='<tr class="loading-row"><td colspan="4">Could not load administrators. Refresh to try again.</td></tr>';toast('Could not load administrators.','error');return;}
+  var list=(await r.json()).admins||[];var rows=document.getElementById('rows'),empty=document.getElementById('emptyState');
+  if(!list.length){rows.innerHTML='';empty.style.display='block';return;}
+  rows.innerHTML=list.map(function(a){return '<tr><td><div class="lect-cell"><div class="avatar">'+esc(initials(a.full_name))+'</div><div class="lect-name">'+esc(a.full_name)+'</div></div></td><td class="mono">'+esc(a.email)+'</td><td class="mono">'+fmtDate(a.created_at)+'</td><td><span class="badge present">Active</span></td></tr>';}).join('');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administrator Register · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body class="auth">
+<div class="wrap wide">
+<div class="brand-hero"><div class="brand-mark">G</div><div class="brand-name">Gray's Attendance</div></div>
+<div class="card auth-card">
+<div class="role-chip amber">Administrator</div>
+<h1>Join your institution</h1>
+<p class="card-sub">Enter the code your institution gave you.</p>
+<form id="form" novalidate>
+<div class="field"><label for="inviteCode">Admin code</label><input type="text" id="inviteCode" class="mono-input" style="text-transform:uppercase;" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ATU-ADM-XK4Q" required><div class="hint">Ask your institution owner to create one. Codes look like ATU-ADM-XK4Q.</div></div><div class="field"><label for="name">Your full name</label><input type="text" id="name" autocomplete="name" placeholder="e.g. Dr. Kofi Boateng" required></div><div class="field"><label for="email">Your email</label><input type="email" id="email" autocomplete="email" placeholder="admin@school.edu.gh" required></div><div class="field"><label for="password">Password</label><div class="password-wrapper"><input type="password" id="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required><button type="button" class="toggle-password" data-target="password">Show</button></div></div><div class="field"><label for="confirm">Confirm password</label><div class="password-wrapper"><input type="password" id="confirm" autocomplete="new-password" placeholder="Repeat your password" required><button type="button" class="toggle-password" data-target="confirm">Show</button></div></div>
+<div class="err" id="err"></div>
+<button class="btn btn-block" type="submit" style="margin-top:20px;">Join institution</button>
+</form>
+<div class="auth-foot">Already an admin? <a href="admin-login.html" class="btn-link">Sign in</a></div>
+</div>
+</div>
+<script src="/js/common.js"></script>
+<script>
+setupAuth({role:'admin',home:'admin.html',url:'/api/auth/admin-register',label:'Join institution',busy:'Joining...',fail:'Could not join.',
+build:function(){
+  var c=val('inviteCode').toUpperCase(),n=val('name'),e=val('email'),p=document.getElementById('password').value,f=document.getElementById('confirm').value;
+  if(!c||!n||!e||!p||!f)throw new Error('Fill in all fields.');
+  if(p.length<8)throw new Error('Password must be at least 8 characters.');
+  if(p!==f)throw new Error('Passwords do not match.');
+  return {invite_code:c,name:n,email:e,password:p};
+}});
+</script>
+</body>
+</html>

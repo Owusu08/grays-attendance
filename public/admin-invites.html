@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lecturer Invites · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Administrator Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="admin.html">Lecturers</a><a href="admin-invites.html" class="active">Invite codes</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('admin-login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="admin.html">Lecturers</a><a href="admin-invites.html" class="active">Invite codes</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">Access</div><h1>Lecturer invite codes</h1><p class="card-sub">Create codes so lecturers can join your institution.</p></div><button class="btn" onclick="openModal()">Create code</button></div>
+<div class="stats three">
+<div class="stat present"><div class="num" id="statActive">0</div><div class="lbl">Active codes</div></div>
+<div class="stat late"><div class="num" id="statUsed">0</div><div class="lbl">Used codes</div></div>
+<div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Total created</div></div>
+</div>
+<div class="table-card"><div class="toolbar"><div class="search"><input type="search" id="searchBox" placeholder="Search code or label" aria-label="Search codes" oninput="renderCodes()"></div><select id="statusFilter" onchange="renderCodes()"><option value="all">All</option><option value="active">Active</option><option value="used">Used</option><option value="expired">Expired</option></select></div><div class="table-wrap"><table><thead><tr><th>Code</th><th>Label</th><th>Uses</th><th>Expires</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
+<tbody id="rows"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading codes...</td></tr></tbody></table></div>
+<div class="empty" id="emptyState" style="display:none;"><div class="big" id="emptyTitle">No invite codes yet</div><span id="emptyText">Click "Create code" to make your first one.</span></div></div>
+</div>
+<div class="modal-overlay" id="genOverlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="genTitle">
+<h2 id="genTitle">Create lecturer code</h2>
+<div class="field"><label for="genLabel">Label (optional)</label><input type="text" id="genLabel" placeholder="e.g. CS Department, September intake" maxlength="80"><div class="hint">Only you see this. It helps you remember who the code was for.</div></div>
+<div class="field"><label for="genMaxUses">Who can use it</label><select id="genMaxUses"><option value="1">1 person</option><option value="5">Up to 5 people</option><option value="25" selected>Up to 25 people</option><option value="0">Anyone (no limit)</option></select></div>
+<div class="field"><label for="genExpiry">Expires in</label><select id="genExpiry"><option value="1">24 hours</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="0">Never</option></select></div>
+<div class="err" id="genErr"></div>
+<div id="genPreview" style="display:none;margin-top:18px;"><label>Your new code</label><div class="preview-code" id="genPreviewCode"></div><button class="btn btn-ghost btn-block btn-sm" type="button" data-copy-from="genPreviewCode">Copy code</button><div class="hint" style="margin:10px 0 8px;">Send the code with this sign-up link:</div><div class="row-between" style="gap:8px;margin-bottom:10px;"><span class="mono" id="joinLink" style="overflow-wrap:anywhere;font-size:12px;"></span><button class="copy-mini" type="button" data-copy-from="joinLink" data-msg="Link copied">Copy</button></div></div>
+<div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn" id="genBtn" onclick="generateCode()">Create code</button></div>
+</div></main>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+var allCodes=[];
+function renderCodes(){
+  var tb=document.getElementById('rows'),empty=document.getElementById('emptyState');
+  var s=(document.getElementById('searchBox')?val('searchBox').toLowerCase():''),f=document.getElementById('statusFilter')?val('statusFilter'):'all';
+  var rows=allCodes.slice();
+  if(s)rows=rows.filter(function(c){return (c.code||'').toLowerCase().includes(s)||(c.label||'').toLowerCase().includes(s);});
+  if(f!=='all')rows=rows.filter(function(c){return statusFor(c)===f;});
+  if(!rows.length){tb.innerHTML='';var filtered=s||f!=='all';document.getElementById('emptyTitle').textContent=filtered?'No matching codes':'No invite codes yet';document.getElementById('emptyText').textContent=filtered?'Try a different search or filter.':'Click "Create code" to make your first one.';empty.style.display='block';return;}
+  empty.style.display='none';
+  tb.innerHTML=rows.map(function(c){var st=statusFor(c);
+    return '<tr><td><div class="code-cell"><span>'+esc(c.code)+'</span><button class="code-copy" data-copy="'+esc(c.code)+'" data-msg="Code copied">Copy</button></div></td><td>'+(esc(c.label)||'<span class="muted">None</span>')+'</td><td class="mono">'+esc(usesText(c))+'</td><td class="mono">'+(c.expires_at?fmtDate(c.expires_at):'Never')+'</td><td><span class="pill '+st+'">'+st[0].toUpperCase()+st.slice(1)+'</span></td><td><div class="row-actions">'+(st==='active'?'<button class="revoke" data-revoke="'+esc(c.code)+'">Revoke</button>':'')+'</div></td></tr>';}).join('');
+}
+
+function renderSummary(){
+  document.getElementById('statActive').textContent=allCodes.filter(function(c){return statusFor(c)==='active';}).length;
+  document.getElementById('statUsed').textContent=allCodes.filter(function(c){return statusFor(c)==='used';}).length;
+  document.getElementById('statTotal').textContent=allCodes.length;
+}
+async function loadCodes(){
+  var r;try{r=await fetch('/api/admin/lecturer-invites');}catch(e){r=null;}
+  if(!r||!r.ok){document.getElementById('rows').innerHTML='<tr class="loading-row"><td colspan="6">Could not load codes. Refresh to try again.</td></tr>';toast('Could not load codes.','error');return;}
+  allCodes=(await r.json()).codes||[];renderCodes();renderSummary();
+}
+async function revoke(code){if(!confirm('Revoke '+code+'?'))return;var r=await fetch('/api/admin/lecturer-invites/'+encodeURIComponent(code),{method:'DELETE'});if(!r.ok){toast('Could not revoke.','error');return;}toast('Code revoked');loadCodes();}
+function openModal(){
+  document.getElementById('genLabel').value='';document.getElementById('genMaxUses').value='25';document.getElementById('genExpiry').value='7';
+  document.getElementById('genErr').classList.remove('show');document.getElementById('genPreview').style.display='none';
+  var b=document.getElementById('genBtn');b.disabled=false;b.textContent='Create code';
+  document.getElementById('genOverlay').classList.add('show');setTimeout(function(){document.getElementById('genLabel').focus();},30);
+}
+function closeModal(){var o=document.getElementById('genOverlay');if(o)o.classList.remove('show');}
+async function generateCode(){
+  document.getElementById('genErr').classList.remove('show');
+  var b=document.getElementById('genBtn');setBusy(b,true,'Creating...');
+  var body={label:val('genLabel'),max_uses:parseInt(val('genMaxUses'),10),expires_in_days:parseInt(val('genExpiry'),10)};
+  try{var r=await fetch('/api/admin/lecturer-invites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});var d=await readJson(r);
+    if(!r.ok){setBusy(b,false,'Create code');showErr(d.error||'Could not create code.','genErr');return;}
+    document.getElementById('genPreviewCode').textContent=d.code;document.getElementById('joinLink').textContent=location.origin+'/register.html';document.getElementById('genPreview').style.display='block';
+    b.disabled=false;b.textContent='Create another';toast('Code created. Copy it and share it.');loadCodes();
+  }catch(e){setBusy(b,false,'Create code');showErr('Could not reach the server.','genErr');}
+}
+guard('admin','admin-login.html').then(function(m){if(m)loadCodes();});
+</script>
+</body>
+</html>

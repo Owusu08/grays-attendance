@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Institution Dashboard · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Institution Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="institution-dashboard.html" class="active">Overview</a><a href="institution-admins.html">Administrators</a><a href="institution-invites.html">Invite codes</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('institution-login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="institution-dashboard.html" class="active">Overview</a><a href="institution-admins.html">Administrators</a><a href="institution-invites.html">Invite codes</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">Overview</div><h1>Institution dashboard</h1><p class="card-sub">Create admin codes and see activity across your institution.</p></div></div>
+<div class="inst-hero"><div class="inst-mark" id="instMark">?</div><div style="flex:1;"><div class="inst-name" id="instName">Loading...</div><div class="inst-code" id="instCode"></div></div><button class="copy-mini" id="copyShortBtn" onclick="copyShort()">Copy code</button></div>
+<div class="stats">
+<div class="stat"><div class="num" id="statAdmins">0</div><div class="lbl">Administrators</div></div>
+<div class="stat present"><div class="num" id="statLecturers">0</div><div class="lbl">Lecturers</div></div>
+<div class="stat rate"><div class="num" id="statCourses">0</div><div class="lbl">Courses</div></div>
+<div class="stat late"><div class="num" id="statSessions">0</div><div class="lbl">Sessions run</div></div>
+</div>
+<div class="grid-2">
+<div class="card" id="create">
+<div class="card-head"><div><h2>Create admin code</h2><p class="card-sub">Give this code to someone you want as an administrator.</p></div></div>
+<div class="field"><label for="genLabel">Label (optional)</label><input type="text" id="genLabel" placeholder="e.g. CS Department lead" maxlength="80"></div>
+<div class="field"><label for="genMaxUses">Who can use it</label><select id="genMaxUses"><option value="1">1 person</option><option value="5" selected>Up to 5 people</option><option value="0">Anyone (no limit)</option></select></div>
+<div class="field"><label for="genExpiry">Expires in</label><select id="genExpiry"><option value="1">24 hours</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="0">Never</option></select></div>
+<div class="err" id="genErr"></div>
+<button class="btn btn-block" id="genBtn" onclick="generateCode()" style="margin-top:14px;">Create code</button>
+<div id="genPreview" style="display:none;margin-top:18px;"><label>Your new code</label><div class="preview-code" id="genPreviewCode"></div><button class="btn btn-ghost btn-block btn-sm" type="button" data-copy-from="genPreviewCode">Copy code</button><div class="hint" style="margin:10px 0 8px;">Send the code with this sign-up link:</div><div class="row-between" style="gap:8px;margin-bottom:10px;"><span class="mono" id="joinLink" style="overflow-wrap:anywhere;font-size:12px;"></span><button class="copy-mini" type="button" data-copy-from="joinLink" data-msg="Link copied">Copy</button></div></div>
+</div>
+<div class="card"><div class="card-head"><h2>Administrators</h2><a href="institution-admins.html" class="btn-link">View all</a></div><div id="recentAdmins" class="muted"><span class="spinner"></span>Loading...</div></div>
+</div>
+<div class="card"><div class="card-head"><h2>Recent codes</h2><a href="institution-invites.html" class="btn-link">Manage all</a></div><div id="recentCodes" class="muted"><span class="spinner"></span>Loading...</div></div>
+</main>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+var institution=null;
+function copyShort(){if(institution&&institution.short_code)copyText(institution.short_code,'Institution code copied');}
+async function loadAll(){
+  if(!await guard('institution','institution-login.html'))return;
+  var r;try{r=await fetch('/api/institutions/me');}catch(e){r=null;}
+  if(!r||!r.ok){document.getElementById('instName').textContent='Could not load institution';toast('Could not load institution. Refresh to try again.','error');return;}
+  institution=await r.json();var i=institution;
+  document.getElementById('instMark').textContent=(i.short_code||'?').slice(0,3);
+  document.getElementById('instName').textContent=i.name||'Unnamed';
+  document.getElementById('instCode').textContent=i.short_code?'Code: '+i.short_code:'';
+  document.getElementById('statAdmins').textContent=i.admin_count||0;
+  document.getElementById('statLecturers').textContent=i.lecturer_count||0;
+  document.getElementById('statCourses').textContent=i.course_count||0;
+  document.getElementById('statSessions').textContent=i.session_count||0;
+  loadAdmins();loadCodes();
+}
+async function loadAdmins(){
+  var box=document.getElementById('recentAdmins');var r=await fetch('/api/institutions/admins');
+  if(!r.ok){box.textContent='Could not load.';return;}
+  var list=((await r.json()).admins||[]).slice(0,5);
+  if(!list.length){box.innerHTML='<div class="empty"><div class="big">No administrators yet</div>Create a code and share it.</div>';return;}
+  box.innerHTML=list.map(function(a){return '<div class="code-row"><div class="lect-cell"><div class="avatar">'+esc(initials(a.full_name))+'</div><div><div class="lect-name">'+esc(a.full_name)+'</div><div class="lect-email">'+esc(a.email)+'</div></div></div><span class="badge">Admin</span></div>';}).join('');
+}
+async function loadCodes(){
+  var box=document.getElementById('recentCodes');var r=await fetch('/api/institutions/invites');
+  if(!r.ok){box.textContent='Could not load.';return;}
+  var list=((await r.json()).codes||[]).slice(0,4);
+  if(!list.length){box.innerHTML='<div class="empty"><div class="big">No codes yet</div>Create one above.</div>';return;}
+  box.innerHTML=list.map(function(c){return '<div class="code-row"><div><div class="code-cell">'+esc(c.code)+'</div><div class="muted" style="font-size:12.5px;margin:2px 0 0;">'+esc(c.label||'No label')+'</div></div><div style="display:flex;align-items:center;gap:10px;"><span class="pill">'+esc(usesText(c))+'</span><button class="copy-mini" data-copy="'+esc(c.code)+'" data-msg="Code copied">Copy</button></div></div>';}).join('');
+}
+async function generateCode(){
+  var err=document.getElementById('genErr');err.classList.remove('show');var gb=document.getElementById('genBtn');setBusy(gb,true,'Creating...');
+  var body={role:'admin',label:val('genLabel'),max_uses:parseInt(val('genMaxUses'),10),expires_in_days:parseInt(val('genExpiry'),10)};
+  try{var r=await fetch('/api/institutions/invites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});var d=await readJson(r);
+    if(!r.ok){showErr(d.error||'Could not create code.','genErr');return;}
+    document.getElementById('genPreviewCode').textContent=d.code;document.getElementById('joinLink').textContent=location.origin+'/admin-register.html';document.getElementById('genPreview').style.display='block';
+    toast('Code created. Copy it and share it.');loadCodes();
+  }catch(e){showErr('Could not reach the server.','genErr');}
+  finally{setBusy(gb,false,'Create code');}
+}
+loadAll().then(function(){if(location.hash==='#create'){var c=document.getElementById('create');c.scrollIntoView({behavior:'smooth',block:'start'});document.getElementById('genLabel').focus({preventScroll:true});}});
+</script>
+</body>
+</html>

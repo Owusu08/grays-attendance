@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Lecturer Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="dashboard.html" class="active">Dashboard</a><a href="courses.html">Courses</a><a href="records.html">Records</a><a href="profile.html">Profile</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="dashboard.html" class="active">Dashboard</a><a href="courses.html">Courses</a><a href="records.html">Records</a><a href="profile.html">Profile</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">Session control</div><h1>Today's class</h1><p class="card-sub">Start a session and share the QR with your students.</p></div></div>
+<div class="dash-grid">
+<div class="card">
+<form class="setup-form" id="setupForm" onsubmit="startSession(event)" novalidate>
+<div class="card-head"><h2>New class session</h2></div>
+<div class="field"><label for="courseSelect">Course</label><select id="courseSelect"><option value="">Loading courses...</option></select></div>
+<div class="field"><label for="cutoffTime">Late after (clock time)</label><input type="time" id="cutoffTime" value="09:15"><div class="hint">Students who check in after this time are marked late.</div></div>
+<div class="err" id="setupErr"></div>
+<button class="btn btn-block" id="startBtn" type="submit" style="margin-top:8px;" disabled>Start session and show QR</button>
+</form>
+<div class="session-display" id="sessionDisplay">
+<div class="card-head"><div><div class="eyebrow">Active session</div><div id="activeCourseLabel" style="font-weight:700;color:var(--heading);margin-top:2px;"></div></div><span class="live-dot">LIVE</span></div>
+<div class="qr-wrap"><img id="qrImg" alt="QR code for students to scan and check in"><div class="qr-caption" id="qrCaption"></div></div>
+<div class="eyebrow" style="text-align:center;">One-time code</div>
+<div class="code-value" id="codeValue" aria-live="polite">----</div>
+<div class="code-meta"><span>New code in</span><span class="countdown" id="countdown" aria-live="off">60s</span></div>
+<div class="session-actions"><button class="btn btn-ghost btn-sm" type="button" onclick="copyLink()">Copy check-in link</button><button class="btn btn-ghost btn-sm" type="button" id="rotateBtn" onclick="rotateCode(true)">New code now</button></div>
+<button class="btn btn-danger btn-block" id="endBtn" type="button" style="margin-top:10px;" onclick="endSession()">End session</button>
+</div>
+</div>
+<div>
+<div class="stats three">
+<div class="stat present"><div class="num" id="statPresent">0</div><div class="lbl">Present</div></div>
+<div class="stat late"><div class="num" id="statLate">0</div><div class="lbl">Late</div></div>
+<div class="stat"><div class="num" id="statTotal">0 / 0</div><div class="lbl">Checked in</div></div>
+</div>
+<div class="card">
+<div class="row-between" style="margin-bottom:14px;"><h2>Live check-ins</h2><span class="live-dot" id="liveDot" style="display:none;">LIVE</span></div>
+<div class="progress-wrap" id="progressWrap" style="display:none;"><div class="progress-label"><span>Attendance progress</span><span id="progressPct">0%</span></div><div class="progress"><i id="progressBar"></i></div></div>
+<div class="roster-toolbar" id="rosterToolbar" style="display:none;">
+<div class="tabs"><button class="tab active" data-tab="all" onclick="switchTab('all')">All</button><button class="tab" data-tab="present" onclick="switchTab('present')">On time</button><button class="tab" data-tab="late" onclick="switchTab('late')">Late</button></div>
+<input type="search" id="rosterSearch" aria-label="Search check-ins" placeholder="Search name or ID" oninput="renderRoster(currentData)" style="flex:1;min-width:180px;width:auto;">
+</div>
+<div class="roster" id="roster"><div class="empty"><div class="big">No session running</div>Start a session to see check-ins here.</div></div>
+</div>
+</div>
+</div>
+</main>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+var SESSION_KEY='grays.activeSession',ROTATE_MS=60000;
+var activeSessionId=null,pollTimer=null,tickTimer=null,nextRotateAt=0,rotating=false,starting=false,currentTab='all';
+var currentData={checked_in:[],present_count:0,late_count:0,total_students:0};
+function ok(res){if(res.status===401){location.href='login.html';return false;}return true;}
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function saveSession(id,label){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({id:id,label:label}));}catch(e){}}
+function clearSession(){try{sessionStorage.removeItem(SESSION_KEY);}catch(e){}}
+function savedSession(){try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch(e){return null;}}
+function setupErr(m){var el=document.getElementById('setupErr');if(!m){el.classList.remove('show');el.textContent='';return;}showErr(m,'setupErr');}
+
+async function loadCourses(){
+  var sel=document.getElementById('courseSelect'),btn=document.getElementById('startBtn');
+  try{
+    var res=await fetch('/api/courses');if(!ok(res))return;var courses=await res.json();
+    if(!courses.length){sel.innerHTML='<option value="">No courses yet</option>';sel.disabled=true;
+      setupErr('You have no courses yet.');document.getElementById('setupErr').innerHTML='You have no courses yet. <a href="courses.html" class="btn-link">Add your first course</a> to start a session.';return;}
+    sel.innerHTML=courses.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.course_code)+' - '+esc(c.course_name)+'</option>';}).join('');
+    sel.disabled=false;btn.disabled=false;
+    var last=lsGet('grays.lastCourse');if(last&&courses.some(function(c){return String(c.id)===last;}))sel.value=last;
+    var cut=lsGet('grays.cutoff');if(cut)document.getElementById('cutoffTime').value=cut;
+  }catch(e){sel.innerHTML='<option value="">Could not load courses</option>';setupErr('Could not load your courses. Check your connection and refresh.');}
+}
+
+function showSession(id,label,code){
+  activeSessionId=id;
+  document.getElementById('setupForm').classList.add('hidden');document.getElementById('sessionDisplay').classList.add('active');
+  document.getElementById('activeCourseLabel').textContent=label;document.getElementById('codeValue').textContent=code||'----';
+  document.getElementById('liveDot').style.display='inline-flex';document.getElementById('rosterToolbar').style.display='flex';document.getElementById('progressWrap').style.display='block';
+  nextRotateAt=Date.now()+ROTATE_MS;tick();
+  clearInterval(pollTimer);clearInterval(tickTimer);
+  pollTimer=setInterval(function(){if(!document.hidden)refreshRoster();},3000);
+  tickTimer=setInterval(tick,1000);
+  loadQr();refreshRoster();
+}
+function resetSessionUi(){
+  clearInterval(pollTimer);clearInterval(tickTimer);activeSessionId=null;clearSession();
+  document.getElementById('setupForm').classList.remove('hidden');document.getElementById('sessionDisplay').classList.remove('active');
+  document.getElementById('liveDot').style.display='none';document.getElementById('rosterToolbar').style.display='none';document.getElementById('progressWrap').style.display='none';
+  document.getElementById('rosterSearch').value='';switchTab('all');
+  currentData={checked_in:[],present_count:0,late_count:0,total_students:0};renderRoster(currentData);
+}
+
+async function startSession(e){
+  if(e)e.preventDefault();if(starting)return;
+  setupErr('');var courseId=val('courseSelect'),cutoff=val('cutoffTime');
+  if(!courseId)return setupErr('Pick a course first.');
+  if(!cutoff)return setupErr('Choose the time after which students count as late.');
+  var sel=document.getElementById('courseSelect'),label=sel.selectedOptions[0].text,btn=document.getElementById('startBtn');
+  starting=true;setBusy(btn,true,'Starting...');
+  try{
+    var res=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({course_id:courseId,late_cutoff_time:cutoff})});
+    if(!ok(res))return;var data=await readJson(res);
+    if(!res.ok){setupErr(data.error||'Could not start the session.');return;}
+    lsSet('grays.lastCourse',courseId);lsSet('grays.cutoff',cutoff);saveSession(data.id,label);
+    showSession(data.id,label,data.session_code);toast('Session started. Share the QR with your class.');
+  }catch(err){setupErr('Could not reach the server. Try again.');}
+  finally{starting=false;setBusy(btn,false,'Start session and show QR');}
+}
+function tick(){
+  var left=Math.max(0,Math.ceil((nextRotateAt-Date.now())/1000));
+  document.getElementById('countdown').textContent=left+'s';
+  if(left<=0&&activeSessionId)rotateCode(false);
+}
+async function loadQr(){
+  try{var res=await fetch('/api/sessions/'+encodeURIComponent(activeSessionId)+'/qr');if(!ok(res)||!res.ok)return;var d=await res.json();
+    document.getElementById('qrImg').src=d.data_url;document.getElementById('qrCaption').textContent=d.url;}catch(e){}
+}
+async function rotateCode(manual){
+  if(!activeSessionId||rotating)return;rotating=true;nextRotateAt=Date.now()+ROTATE_MS;
+  var b=document.getElementById('rotateBtn');if(manual)b.disabled=true;
+  try{var res=await fetch('/api/sessions/'+encodeURIComponent(activeSessionId)+'/rotate',{method:'POST'});
+    if(res.status===401){location.href='login.html';return;}
+    if(!res.ok){if(manual)toast('Could not issue a new code.','error');return;}
+    var d=await res.json();document.getElementById('codeValue').textContent=d.session_code;tick();if(manual)toast('New code issued.');
+  }catch(e){if(manual)toast('Could not reach the server.','error');}
+  finally{rotating=false;b.disabled=false;}
+}
+function copyLink(){var u=document.getElementById('qrCaption').textContent;if(u)copyText(u,'Check-in link copied');else toast('Link is not ready yet.','error');}
+async function endSession(){
+  if(!activeSessionId)return;
+  if(!confirm('End this session? Students will no longer be able to check in.'))return;
+  var b=document.getElementById('endBtn');setBusy(b,true,'Ending...');
+  try{var res=await fetch('/api/sessions/'+encodeURIComponent(activeSessionId)+'/end',{method:'POST'});
+    if(!ok(res))return;
+    if(!res.ok){toast('Could not end the session. Try again.','error');return;}
+    var total=currentData.checked_in.length,of=currentData.total_students;
+    resetSessionUi();toast('Session ended. '+total+(of?' of '+of:'')+' checked in.');
+  }catch(e){toast('Could not reach the server.','error');}
+  finally{setBusy(b,false,'End session');}
+}
+async function refreshRoster(){
+  if(!activeSessionId)return;
+  try{var res=await fetch('/api/sessions/'+encodeURIComponent(activeSessionId)+'/roster');if(!ok(res))return;
+    if(res.status===404||res.status===403){resetSessionUi();toast('This session is no longer active.','error');return;}
+    if(!res.ok)return;currentData=await res.json();renderRoster(currentData);}catch(e){}
+}
+function switchTab(t){currentTab=t;document.querySelectorAll('.tabs .tab').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});renderRoster(currentData);}
+function renderRoster(data){
+  var roster=document.getElementById('roster'),all=data.checked_in||[];
+  document.getElementById('statPresent').textContent=data.present_count||0;document.getElementById('statLate').textContent=data.late_count||0;
+  document.getElementById('statTotal').textContent=all.length+' / '+(data.total_students||0);
+  var pct=data.total_students>0?Math.min(100,Math.round(all.length/data.total_students*100)):0;
+  document.getElementById('progressBar').style.width=pct+'%';document.getElementById('progressPct').textContent=pct+'%';
+  if(!activeSessionId){roster.innerHTML='<div class="empty"><div class="big">No session running</div>Start a session to see check-ins here.</div>';return;}
+  var rows=all,s=val('rosterSearch').toLowerCase();
+  if(currentTab!=='all')rows=rows.filter(function(r){return r.status===currentTab;});
+  if(s)rows=rows.filter(function(r){return (r.full_name||'').toLowerCase().includes(s)||(r.student_id||'').toLowerCase().includes(s);});
+  if(!rows.length){roster.innerHTML=all.length?'<div class="empty"><div class="big">No matches</div>Try another filter or search.</div>':'<div class="empty"><div class="big">Waiting for check-ins</div>Students appear here as soon as they check in.</div>';return;}
+  roster.innerHTML=rows.map(function(e){
+    return '<div class="row"><div class="avatar">'+esc(initials(e.full_name))+'</div><div><div class="row-name">'+esc(e.full_name)+'</div><div class="row-id">'+esc(e.student_id)+'</div></div><div class="row-time">'+esc(fmtTime(e.time_marked))+'</div><div style="display:flex;align-items:center;gap:8px;"><span class="badge '+esc(e.status)+'">'+(e.status==='late'?'Late':'Present')+'</span><button class="revoke" data-remove="'+esc(e.student_id)+'" aria-label="Remove check-in for '+esc(e.full_name)+'">Remove</button></div></div>';
+  }).join('');
+}
+document.getElementById('roster').addEventListener('click',function(e){var b=e.target.closest('[data-remove]');if(b)removeCheckin(b.dataset.remove);});
+async function removeCheckin(id){
+  if(!confirm('Remove this check-in? The student will be able to check in again.'))return;
+  try{var res=await fetch('/api/sessions/'+encodeURIComponent(activeSessionId)+'/checkin/'+encodeURIComponent(id),{method:'DELETE'});if(!ok(res))return;
+    if(!res.ok){toast('Could not remove check-in.','error');return;}toast('Check-in removed.');refreshRoster();}
+  catch(e){toast('Could not reach the server.','error');}
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&activeSessionId){refreshRoster();tick();}});
+async function restoreSession(){
+  var s=savedSession();if(!s||!s.id)return;
+  try{var res=await fetch('/api/sessions/'+encodeURIComponent(s.id)+'/roster');
+    if(!res.ok){clearSession();return;}
+    var r=await fetch('/api/sessions/'+encodeURIComponent(s.id)+'/rotate',{method:'POST'});
+    if(!r.ok){clearSession();return;}var d=await r.json();
+    showSession(s.id,s.label||'Active session',d.session_code);toast('Welcome back. Your session is still running.');
+  }catch(e){}
+}
+renderRoster(currentData);
+guard('lecturer','login.html').then(function(m){if(m)loadCourses().then(restoreSession);});
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}
+</script>
+</body>
+</html>

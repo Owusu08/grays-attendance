@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invite Codes · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><div class="brand-mark">G</div><div class="brand-text"><div class="brand-name">Gray's Attendance</div><div class="brand-sub">Institution Portal</div></div></div>
+<nav class="nav-links" aria-label="Main"><a href="institution-dashboard.html">Overview</a><a href="institution-admins.html">Administrators</a><a href="institution-invites.html" class="active">Invite codes</a></nav>
+<div class="nav-right"><span class="who" id="who"></span><button class="btn btn-ghost btn-sm" id="themeBtn" onclick="toggleTheme()">Dark</button><button class="btn btn-ghost btn-sm menu-btn" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mobileMenu" onclick="toggleMenu()">Menu</button><button class="btn btn-sm" onclick="logout('institution-login.html')">Log out</button></div>
+</div>
+<div class="mobile-menu" id="mobileMenu"><a href="institution-dashboard.html">Overview</a><a href="institution-admins.html">Administrators</a><a href="institution-invites.html" class="active">Invite codes</a></div>
+</header>
+<main id="main" class="layout"><div class="page-head"><div><div class="eyebrow">Access</div><h1>Admin invite codes</h1><p class="card-sub">Every code you created for administrators.</p></div><a href="institution-dashboard.html#create" class="btn">Create code</a></div><div class="table-card"><div class="toolbar"><div class="search"><input type="search" id="searchBox" placeholder="Search code or label" aria-label="Search codes" oninput="renderCodes()"></div><select id="statusFilter" aria-label="Filter by status" onchange="renderCodes()"><option value="all">All</option><option value="active">Active</option><option value="used">Used</option><option value="expired">Expired</option></select></div><div class="table-wrap"><table><thead><tr><th>Code</th><th>Label</th><th>Uses</th><th>Expires</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
+<tbody id="rows"><tr class="loading-row"><td colspan="6"><span class="spinner"></span>Loading codes...</td></tr></tbody></table></div>
+<div class="empty" id="emptyState" style="display:none;"><div class="big" id="emptyTitle">No invite codes yet</div><span id="emptyText">Use "Create code" to make your first one.</span></div></div></main>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+var allCodes=[];
+function renderCodes(){
+  var tb=document.getElementById('rows'),empty=document.getElementById('emptyState');
+  var s=(document.getElementById('searchBox')?val('searchBox').toLowerCase():''),f=document.getElementById('statusFilter')?val('statusFilter'):'all';
+  var rows=allCodes.slice();
+  if(s)rows=rows.filter(function(c){return (c.code||'').toLowerCase().includes(s)||(c.label||'').toLowerCase().includes(s);});
+  if(f!=='all')rows=rows.filter(function(c){return statusFor(c)===f;});
+  if(!rows.length){tb.innerHTML='';var filtered=s||f!=='all';document.getElementById('emptyTitle').textContent=filtered?'No matching codes':'No invite codes yet';document.getElementById('emptyText').textContent=filtered?'Try a different search or filter.':'Use "Create code" to make your first one.';empty.style.display='block';return;}
+  empty.style.display='none';
+  tb.innerHTML=rows.map(function(c){var st=statusFor(c);
+    return '<tr><td><div class="code-cell"><span>'+esc(c.code)+'</span><button class="code-copy" data-copy="'+esc(c.code)+'" data-msg="Code copied">Copy</button></div></td><td>'+(esc(c.label)||'<span class="muted">None</span>')+'</td><td class="mono">'+esc(usesText(c))+'</td><td class="mono">'+(c.expires_at?fmtDate(c.expires_at):'Never')+'</td><td><span class="pill '+st+'">'+st[0].toUpperCase()+st.slice(1)+'</span></td><td><div class="row-actions">'+(st==='active'?'<button class="revoke" data-revoke="'+esc(c.code)+'">Revoke</button>':'')+'</div></td></tr>';}).join('');
+}
+
+async function revoke(code){if(!confirm('Revoke '+code+'?'))return;var r=await fetch('/api/institutions/invites/'+encodeURIComponent(code),{method:'DELETE'});if(!r.ok){toast('Could not revoke.','error');return;}toast('Code revoked');load();}
+async function load(){
+  if(!await guard('institution','institution-login.html'))return;
+  var r;try{r=await fetch('/api/institutions/invites');}catch(e){r=null;}
+  if(!r||!r.ok){document.getElementById('rows').innerHTML='<tr class="loading-row"><td colspan="6">Could not load codes. Refresh to try again.</td></tr>';toast('Could not load codes.','error');return;}
+  allCodes=(await r.json()).codes||[];renderCodes();
+}
+load();
+</script>
+</body>
+</html>

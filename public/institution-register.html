@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register Institution · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<meta name="theme-color" content="#4F46E5">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body class="auth">
+<div class="wrap wide">
+<div class="brand-hero"><div class="brand-mark">G</div><div class="brand-name">Gray's Attendance</div></div>
+<div class="card auth-card">
+<div class="role-chip">Institution</div>
+<h1>Register your institution</h1>
+<p class="card-sub">You will be the owner and can invite administrators. A short institution code is generated from the name.</p>
+<form id="form" novalidate>
+<div class="field"><label for="name">Institution name</label><input type="text" id="name" placeholder="e.g. Accra Technical University" required></div><div class="field"><label for="ownerName">Your full name</label><input type="text" id="ownerName" autocomplete="name" placeholder="e.g. Dr. Ama Mensah" required></div><div class="field"><label for="email">Your email</label><input type="email" id="email" autocomplete="email" placeholder="owner@school.edu.gh" required></div><div class="field"><label for="password">Password</label><div class="password-wrapper"><input type="password" id="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required><button type="button" class="toggle-password" data-target="password">Show</button></div></div><div class="field"><label for="confirm">Confirm password</label><div class="password-wrapper"><input type="password" id="confirm" autocomplete="new-password" placeholder="Repeat your password" required><button type="button" class="toggle-password" data-target="confirm">Show</button></div></div>
+<div class="err" id="err"></div>
+<button class="btn btn-block" type="submit" style="margin-top:20px;">Create institution</button>
+</form>
+<div class="auth-foot">Already registered? <a href="institution-login.html" class="btn-link">Sign in</a></div>
+</div>
+</div>
+<script src="/js/common.js"></script>
+<script>
+function makeCode(n){var w=n.toUpperCase().replace(/[^A-Z ]/g,'').split(/\s+/).filter(Boolean);var c=w.map(function(x){return x[0];}).join('');if(c.length<2)c=w.join('').slice(0,4);return c.slice(0,6);}
+setupAuth({role:'institution',home:'institution-dashboard.html',url:'/api/institutions/register',label:'Create institution',busy:'Creating...',fail:'Registration failed.',
+build:function(){
+  var n=val('name'),o=val('ownerName'),e=val('email'),p=document.getElementById('password').value,c=document.getElementById('confirm').value;
+  if(!n||!o||!e||!p||!c)throw new Error('Fill in all fields.');
+  var sc=makeCode(n);if(sc.length<2)throw new Error('Enter a valid institution name.');
+  if(p.length<8)throw new Error('Password must be at least 8 characters.');
+  if(p!==c)throw new Error('Passwords do not match.');
+  return {institution_name:n,short_code:sc,email_domain:'',owner_name:o,email:e,password:p};
+}});
+</script>
+</body>
+</html>

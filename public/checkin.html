@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check in · Gray's Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234F46E5%27/%3E%3Ctext x=%2716%27 y=%2722.5%27 font-family=%27Arial%27 font-weight=%27800%27 font-size=%2719%27 text-anchor=%27middle%27 fill=%27white%27%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/css/modern.css">
+<script>(function(){try{document.documentElement.setAttribute('data-theme',localStorage.getItem('theme')||'light');}catch(e){}})();</script>
+</head>
+<body class="auth">
+<div class="wrap">
+<div class="brand-hero"><div class="brand-mark">G</div><div class="brand-name">Gray's Attendance</div></div>
+<div class="card auth-card">
+<div class="role-chip green">Student</div>
+<h1>Check in</h1>
+<p class="card-sub" id="course">Loading class...</p>
+<form id="form" novalidate>
+<div class="field"><label for="studentId">Student ID</label><input type="text" id="studentId" class="mono-input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. 0123456789" maxlength="40" required></div>
+<div class="field"><label for="code">One-time code</label><input type="text" id="code" class="mono-input" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" placeholder="6-digit code on the screen" maxlength="6" required><div class="hint">The code changes every minute. Type the one your lecturer is showing now.</div></div>
+<div class="err" id="err"></div>
+<button class="btn btn-block" id="submitBtn" type="submit" style="margin-top:20px;" disabled>Check in</button>
+</form>
+<div class="msg" id="done"></div>
+</div>
+</div>
+<div class="toast-wrap" id="toastWrap"></div>
+<script src="/js/common.js"></script>
+<script>
+var sid=new URLSearchParams(location.search).get('s');
+var btn=document.getElementById('submitBtn'),form=document.getElementById('form');
+(async function(){
+  if(!sid){document.getElementById('course').textContent='This link is missing its session. Scan the QR code again.';return;}
+  try{
+    var r=await fetch('/api/checkin/'+encodeURIComponent(sid));var d=await readJson(r);
+    if(!r.ok){document.getElementById('course').textContent=d.error||'This session is not available.';return;}
+    document.getElementById('course').textContent=d.course_code+' - '+d.course_name;btn.disabled=false;
+    document.getElementById('studentId').focus();
+  }catch(e){document.getElementById('course').textContent='Could not reach the server. Check your connection and reload.';}
+})();
+form.addEventListener('submit',async function(e){
+  e.preventDefault();hideErr();
+  var id=val('studentId'),code=val('code');
+  if(!id||!code)return showErr('Enter your student ID and the code.');
+  setBusy(btn,true,'Checking in...');
+  try{
+    var r=await fetch('/api/checkin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:Number(sid),student_id:id,code:code})});
+    var d=await readJson(r);
+    if(!r.ok){setBusy(btn,false,'Check in');return showErr(d.error||'Could not check you in.');}
+    form.style.display='none';
+    var m=document.getElementById('done');
+    m.textContent=(d.status==='late'?'Checked in as LATE, ':'You are marked present, ')+d.full_name+'. You can close this page.';
+    m.className='msg show ok';
+  }catch(x){setBusy(btn,false,'Check in');showErr('Could not reach the server. Try again.');}
+});
+</script>
+</body>
+</html>
